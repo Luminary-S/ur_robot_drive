@@ -164,3 +164,16 @@ robot_status_controller:
    type: industrial_robot_status_controller/IndustrialRobotStatusController
    handle_name: industrial_robot_status_handle
    publish_rate: 10
+
+#Add: visualize the cartesian trajectory, refer from https://github.com/UniversalRobots/Universal_Robots_ROS_controllers_cartesian/blob/main/cartesian_trajectory_controller/README.md
+visualize_cartesian_trajectories:
+    type: "cartesian_trajectory_publisher/CartesianTrajectoryPublisher"
+    base: "base_link"
+    tip: "tool0"
+    joints:
+       - shoulder_pan_joint
+       - shoulder_lift_joint
+       - elbow_joint
+       - wrist_1_joint
+       - wrist_2_joint
+       - wrist_3_joint
