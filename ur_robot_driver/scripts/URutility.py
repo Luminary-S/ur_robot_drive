@@ -74,7 +74,10 @@ def trace_round(*args):
             res.append("\n")
         elif isinstance(item, str):
             res.append(item)
-            res.append(": ")    
+            res.append(": ")
+        elif isinstance(item, (int, float, bool)):
+            res.append(str(item))
+            # res.append(": ")    
     # res.append("---")
     res = res[:-1]
     trace_arg(*res)
@@ -168,7 +171,8 @@ def publish_pose(pub, trans, quat, name):
 def sleep(t):
     rospy.sleep(t)
 
-
+def urtopic_list2right(l):
+    return [l[2], l[1], l[0], l[3], l[4], l[5]]
 
 #TAG:############# UR ##################
 def cmd_script(cmd_str, l):

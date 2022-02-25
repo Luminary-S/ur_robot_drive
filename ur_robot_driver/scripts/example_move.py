@@ -114,11 +114,16 @@ class URDemo:
     def get_FT_wrench(self):
         return self.ft_kf.f
 
+    def get_jpose(self):
+        q = self.urm.now_ur_pos
+        return q
+
     def get_ee_p_rot(self):
         position, quaternion = self.get_tf_pose_rot()
         rot = quaternion2rot(quaternion)
         inv_rot = quaternion2invRot(quaternion)
-        return position,rot, inv_rot
+        angle = quaternion.angle
+        return position,rot, inv_rot, angle
 
     def rate_sleep(self):
         self.rate.sleep()
@@ -520,6 +525,181 @@ def test_ori_ctr_stage_2():
     print("finished...")
 
 
+def test_closing_touch_linear_clean():
+    print("====  test_closing_touch_linear_clean ======")
+
+    p0_init = [0.20053, -2.02754, 1.69492, -2.70726, 4.85173, -1.70402]
+
+    ur = URDemo()
+    ur.init()
+
+    sleep(0.5)
+    res1 = ur.go_to_jpose(p0_init)
+    sleep(3)
+
+    # 1. touch the surface
+    F_0 = ur.get_FT_wrench()
+    trace_arg(F_0)
+    HZ = 50
+    delta_F_threshold_1 = [3.0, 10.0, 2.0, 0.08, 0.08, 2]
+    F_t = [0, 0, 3, 0, 0, 0]
+    F_comp = [0.00, 0, 0.0, -0.006, 0, -0]
+    F_d = list_add(F_t, F_comp)
+    v_d, abs_delta_F = ur.HBctr.force_touch_ctr(F_0, F_d)
+    # res1 = ur.go_to_jpose(p0_touch_unface)
+    limit_V = np.array([0, 0, 0.02, 0.03, 0.03, 0.1])
+    loop = 0
+
+    print("abs_delta_F[2]", abs_delta_F[2])
+    print("delta_F_threshold_1[2]", delta_F_threshold_1[2])
+    while abs_delta_F[2] >= delta_F_threshold_1[2]:
+        print("abs_delta_F[2]", abs_delta_F[2])
+        print("delta_F_threshold_1[2]", delta_F_threshold_1[2])
+        trace_arg("=====stage 1=====")
+        trace_loop(loop)
+        try:
+            delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
+            F_0 = ur.get_FT_wrench()
+            # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+            v_d, abs_delta_F = ur.HBctr.force_touch_ctr(F_0, F_d)
+            v_d = V_d_limitation(v_d, limit_V)
+            trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+            loop += 1
+            ur.rate_sleep()
+        except KeyboardInterrupt:
+            rospy.signal_shutdown("KeyboardInterrupt")
+            raise
+        exp_publish(ur.vd_pub, v_d)
+    print("finished touch the window stage 1...")
+    sleep(2)
+
+    #2 . adjust z orientation
+    q = ur.get_jpose()
+    qd = ur.HBctr.z_ori_adjustment(q)
+    ur.go_to_jpose(qd)
+    print("finished z orientation adjustment stage 2...")
+    sleep(1)
+
+    # 3. orientation control for fully touching
+    F_0 = ur.get_FT_wrench()
+    trace_arg(F_0)
+    HZ = 50
+    delta_F_threshold_2 = [3.0, 10.0, 1.0, 0.08, 0.08, 2.0]
+    F_t = [.0, .0, -13.0, .0, .0, .0]
+    F_comp = [0.00, .0, .0, -0.006, .0, -.0]
+    F_d = list_add(F_t, F_comp)
+    # K_ori = np.array([1e8, 1e8, 3000, 5, 5, 1e8])
+    # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+    v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+    # v_d = V_d_limitation(v_d)
+    limit_V = np.array([0, 0, 0.1, 0.03, 0.03, 0.1])
+    loop = 0
+    while np.sum(abs_delta_F[2:-1] < delta_F_threshold_2[2:-1]) < 3:
+        trace_arg("====stage 3====")
+        trace_loop(loop)
+        try:
+
+            delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
+            F_0 = ur.get_FT_wrench()
+            # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+            v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+            v_d = V_d_limitation(v_d, limit_V)
+            trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+            loop += 1
+            ur.rate_sleep()
+        except KeyboardInterrupt:
+            rospy.signal_shutdown("KeyboardInterrupt")
+            raise
+        exp_publish(ur.vd_pub, v_d)
+    print("finished xy and Fz adjustment for closing touch in stage 3...")
+
+    # 4. linear cleaning, 0.01m/s speed running 4 second
+    clean_line_loop = 0
+    clean_loop_threshold = 3
+    while clean_line_loop <= 3:
+        clean_line_loop += 1
+
+        clean_speed = -0.02
+        Duration = 4.0
+        v_w = [clean_speed*((clean_line_loop%2-0.5)*2), 0.0]
+        limit_V = np.array([0.04, 0.04, 0.1, 0.03, 0.03, 0.1])
+        F_t = [.0, .0, -13.0, .0, .0, .0]
+        F_comp = [0.00, .0, .0, -0.006, .0, -.0]
+        F_d = list_add(F_t, F_comp)
+        window_cleaning_movement(ur, v_w, Duration, F_d)
+        # print("finished cleaning in one line in stage 4...")
+        print("finished cleaning in one line in stage 4, with cleaning loop %s..." %(clean_line_loop))
+
+        # 5. linear change position, 0.01m/s speed running 1 second
+        if clean_line_loop <= clean_loop_threshold:
+            clean_speed = 0.02
+            Duration = 4.0
+            v_w = [0.0, clean_speed]
+            limit_V = np.array([0.04, 0.04, 0.1, 0.03, 0.03, 0.1])
+            F_t = [.0, .0, -13.0, .0, .0, .0]
+            F_comp = [0.00, .0, .0, -0.006, .0, -.0]
+            F_d = list_add(F_t, F_comp)
+            window_cleaning_movement(ur, v_w, Duration, F_d)
+            # print("finished cleaning in one line in stage 4...")
+            print("finished change cleaning position to next in stage 4, with change line to line %s..." %(clean_line_loop+1))
+        
+    print("finished change cleaning position to next in stage 5...")
+
+def test_linear_clean():
+    print("====  test linear_clean ======")
+    p0_init = [0.20053, -2.02754, 1.69492, -2.70726, 4.85173, -1.70402]
+    p0_touch_face = [0.28427, -1.29416, 1.39266, -3.22424, 4.78619, -1.56541]
+    ur = URDemo()
+    ur.init()
+
+    sleep(0.5)
+    res1 = ur.go_to_jpose(p0_init)
+    sleep(3)
+    # 1. go to experiment init position
+    res1 = ur.go_to_jpose(p0_touch_face)
+    sleep(4)
+    # 2. linear cleaning
+
+    clean_speed = 0.02
+    Duration = 4.0
+    v_w = [clean_speed, 0.0]
+    limit_V = np.array([0.04, 0.04, 0.1, 0.03, 0.03, 0.1])
+    F_t = [.0, .0, -13.0, .0, .0, .0]
+    F_comp = [0.00, .0, .0, -0.006, .0, -.0]
+    F_d = list_add(F_t, F_comp)
+    window_cleaning_movement(ur, v_w, Duration, F_d)
+    print("finished cleaning in one line in stage 4...")
+
+def window_cleaning_movement(ur, v_w, Duration, F_d, limit_V=np.array([0.04, 0.04, 0.1, 0.03, 0.03, 0.1])):
+    HZ = 50
+    loop = 0
+    # clean_speed = 0.02
+    # Duration = 4.0
+    t = 0.0
+    # limit_V = np.array([0.04, 0.04, 0.1, 0.03, 0.03, 0.1])
+    # F_t = [.0, .0, -13.0, .0, .0, .0]
+    # F_comp = [0.00, .0, .0, -0.006, .0, -.0]
+    # F_d = list_add(F_t, F_comp)
+    while t < Duration:
+        trace_arg("==== cleaning the window with velocity, ","vertical", v_w[0], " horizontal:",v_w[1], "====")
+        trace_loop(loop)
+        trace_arg("duration", t)
+        try:
+            F_0 = ur.get_FT_wrench()
+            # v_w = [clean_speed, 0.0]  # x: vertical, y: horizontal
+            v_d, abs_delta_F = ur.HBctr.linear_clean_ctr(F_0, F_d, v_w)
+            v_d = V_d_limitation(v_d, limit_V)            
+            trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+            delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
+            loop += 1
+            t = loop * 1.0 / HZ
+            ur.rate_sleep()
+        except KeyboardInterrupt:
+            rospy.signal_shutdown("KeyboardInterrupt")
+            raise
+        exp_publish(ur.vd_pub, v_d)
+    print("finished cleaning in one line in stage 4...")
+
 def test_ori_ctr_old():
     
     # import 
@@ -602,4 +782,6 @@ if __name__ == '__main__':
     # test_ur_move()
     # test_ori_ctr()
     # test_ori_ctr_stage_1_2()
-    test_ori_ctr_stage_2()
+    # test_ori_ctr_stage_2()  #  useful !! latest
+    # test_linear_clean()
+    test_closing_touch_linear_clean()

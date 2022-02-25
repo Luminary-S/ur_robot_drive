@@ -11,9 +11,13 @@
 ##############
 
 import math
+# import math.pi as M_PI
 import numpy as np
 import quaternion
 from pyquaternion import Quaternion
+
+M_PI = math.pi
+
 ############### math trans #######################
 def deg2rad(p_list):
     return [i/180.0*math.pi for i in p_list]
@@ -42,6 +46,26 @@ def V_d_limitation( V, limit_V ):
         else:
             V_r.append(V[i])
     return V_r
+
+def minimum_degree_distance(d1, d2):
+    delta_d = d1 - d2
+    return 
+
+def to_degrees(radians):
+    return radians * 180.0 / M_PI
+
+def normalize_angle_positive(angle):
+    return math.fmod(math.fmod(angle, 2.0*M_PI) + 2.0*M_PI, 2.0*M_PI)
+
+def normalize_angle(angle):
+    a = normalize_angle_positive(angle)
+    if (a > M_PI):
+      a -= 2.0 *M_PI
+    return a
+
+def shortest_angular_distance(from_a, to_a):
+    return normalize_angle(to_a-from_a)
+
 
 def get_diagonal(mat):
     return np.diagonal(mat)

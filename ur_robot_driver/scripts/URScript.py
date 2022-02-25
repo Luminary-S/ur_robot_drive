@@ -80,8 +80,8 @@ class URScriptMove(object):
         self.read_pos_from_ur_joint(msg)    
 
     def read_pos_from_ur_joint(self, msg):
-        self.now_ur_pos = list(msg.position)
-        self.now_vel = list(msg.velocity)
+        self.now_ur_pos = urtopic_list2right(list(msg.position))
+        self.now_vel = urtopic_list2right(list(msg.velocity))
 
     #NOTE: Move to position (linear in joint-space)
     def movej(self, l, a=1.4, v=1.05, t=0, r=0):

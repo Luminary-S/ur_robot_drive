@@ -141,6 +141,7 @@ class HybridController(object):
         kd_t = np.diag([0, 0, 1.0/100, 1.0/100, 1.0/100, 0])
         self.pid = PID( kp_t, ki_t, kd_t )
 
+    #TODO: add damping
     def ori_pid_ctr(self, F, F_d):
         v_d = self.pid.update(F,F_d)
         delta_F = self.pid.delta_val
@@ -152,16 +153,32 @@ class HybridController(object):
         trace_round("diff_F", diff_F, "sum_delta_F", sum_delta_F)
         return v_d, abs_delta_F
 
-    def linear_clean_ctr(self, F, F_d):
+    #TODO: add damping
+    def force_touch_ctr(self, F, F_d):
+        K = np.array( [ 0,0, 1.0/300, 0,0,0  ] )
+        delta_F = list_minus(F, F_d)
+        # exponential feedback
+        v_d = K * np.exp(delta_F) # element wise product
+        abs_delta_F = np.abs(delta_F)
+        trace_round("del_F", delta_F, "abs_delta_F", abs_delta_F, "v_d", v_d)
+        return v_d, abs_delta_F
+
+    def z_ori_adjustment(self, q):
+        # adjust z orientation to horizontal
+        return [q[0], q[1], q[2], q[3], q[4], -1.570]
+
+    # include orientation control and the y direction cleaning
+    def linear_clean_ctr(self, F, F_d, v_w):
         v_d = self.pid.update(F, F_d)
         delta_F = self.pid.delta_val
         abs_delta_F = np.abs(delta_F)
         diff_F = self.pid.diff_val
         sum_delta_F = self.pid.sum_val
         v_d = get_diagonal(v_d)
-        trace_round("F_0", F, "del_F", delta_F, "v_d", v_d)
+        v_r = [v_d[0]+v_w[0], v_d[1]+v_w[1], v_d[2], v_d[3],v_d[4],v_d[5]] 
+        trace_round("F_0", F, "del_F", delta_F, "v_d", v_d, "v_r", v_r)
         trace_round("diff_F", diff_F, "sum_delta_F", sum_delta_F)
-        return v_d, abs_delta_F
+        return v_r, abs_delta_F
 
     def ori_ctr(self, F, F_d, K):
 
