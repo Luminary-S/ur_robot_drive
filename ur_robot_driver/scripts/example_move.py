@@ -645,6 +645,10 @@ def test_closing_touch_linear_clean():
         
     print("finished change cleaning position to next in stage 5...")
 
+    res1 = ur.go_to_jpose(p0_init)
+    sleep(3)
+    print("finish cleaning and back to init position stage 6...")
+
 def test_linear_clean():
     print("====  test linear_clean ======")
     p0_init = [0.20053, -2.02754, 1.69492, -2.70726, 4.85173, -1.70402]
