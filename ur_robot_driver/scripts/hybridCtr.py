@@ -135,7 +135,7 @@ class HybridController(object):
         #minimize the moment
 
     def set_ori_pid(self):
-        kp_t = np.diag([1.0/1e8, 1.0/1e8, 1.0/3000, 1.0/5, 1.0/5, 1.0/1e8])
+        kp_t = np.diag([1.0/1e8, 1.0/1e8, 1.0/3000, 1.0/5, 1.0/6, 1.0/1e8])
         ki_t = np.diag([0, 0, 0, 0, 0, 0])
         # ki_t = np.diag([0, 0, 1.0/1000000, 1.0/1000000, 1.0/1000000, 0])
         kd_t = np.diag([0, 0, 1.0/100, 1.0/100, 1.0/100, 0])
@@ -148,12 +148,17 @@ class HybridController(object):
         diff_F =  self.pid.diff_val
         sum_delta_F = self.pid.sum_val
         v_d = get_diagonal(v_d)
-        # delta_F = get_diagonal(delta_F)
-        # abs_delta_F = np.abs(delta_F)
-        # print("d_F:",delta_F)
-        # print("abs_d_F:",abs_delta_F)
-        # print("diff_F:",diff_F)
-        # print("sum_D_F:",sum_delta_F)
+        trace_round("F_0", F, "del_F", delta_F, "v_d", v_d)
+        trace_round("diff_F", diff_F, "sum_delta_F", sum_delta_F)
+        return v_d, abs_delta_F
+
+    def linear_clean_ctr(self, F, F_d):
+        v_d = self.pid.update(F, F_d)
+        delta_F = self.pid.delta_val
+        abs_delta_F = np.abs(delta_F)
+        diff_F = self.pid.diff_val
+        sum_delta_F = self.pid.sum_val
+        v_d = get_diagonal(v_d)
         trace_round("F_0", F, "del_F", delta_F, "v_d", v_d)
         trace_round("diff_F", diff_F, "sum_delta_F", sum_delta_F)
         return v_d, abs_delta_F

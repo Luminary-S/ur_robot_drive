@@ -24,6 +24,25 @@ def dataRaw2Real(l):
 def list_minus(a,b):
     return  np.array(a) - np.array(b)
 
+
+def list_add(a, b):
+    return np.array(a) - np.array(b)
+
+def V_d_limitation( V, limit_V ):
+    
+    # for i in limit_V
+    V_r = []
+    sign_V = np.sign(V)
+    print(sign_V)
+    delta_V = np.abs(np.array(V)) - limit_V
+    print(delta_V)
+    for i in range(len(delta_V)):
+        if delta_V[i] >= 0:
+            V_r.append(limit_V[i]*sign_V[i])
+        else:
+            V_r.append(V[i])
+    return V_r
+
 def get_diagonal(mat):
     return np.diagonal(mat)
 

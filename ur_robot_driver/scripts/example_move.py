@@ -321,7 +321,7 @@ def test_ori_dyn():
 def test_ori_ctr_stage_1_2():
     print("====  test ori controller ======")
     p0_touch_face = [-0.12623, -1.12464, 0.90863, -2.24747, 4.75904, -1.63225]
-    p0_init = [-0.04932, -1.43655, 1.52059, -3.223, 4.50148, -1.46332]
+    p0_init = [0.20053, -2.02754, 1.69492, -2.70726, 4.85173, -1.70402]
     p0_touch_unface = [-0.10995, -1.15815,
                        0.88386, -2.07841, 4.60772, -1.57329]
     p0_untouch_face = [-0.15507, -1.24976,
@@ -329,6 +329,17 @@ def test_ori_ctr_stage_1_2():
     p0_touch_unface = [-0.04143, -1.21044,
                        1.05306, -2.36349, 4.41011, -1.48096]
     p0_touch_unface = [-0.21524, -1.23101, 0.88651, -1.90119, 5.15509, -1.66937]  # right up
+    p0_touch_unface = [-0.19083, -1.32135, 1.23862, -2.6019, 5.11803, -1.58217] # right down
+    p0_touch_unface = [-0.06702, -1.12979,
+                       0.85873, -2.34868, 4.34746, -1.60288]
+  # left down
+    # p0_touch_unface = [-0.07496, -1.00436, 0.63303, -2.19539, 4.35075, -1.52971] # large force -5-8N left down
+    p0_touch_unface = [0.71431, -1.40066, 1.18128, -2.55281, 3.96198, -1.45714]# window left up no left rotate touch, will slide on the window
+    p0_touch_unface = [0.692, -0.9567, 0.19264, -1.97871, 3.92475, -1.64505]
+ # window left up left rotate touch , large incline angle in the Z axis 
+    p0_touch_unface = [0.34265, -1.49027, 1.35336, -2.80789, 4.8922, -1.50369] # right up touch
+    p0_touch_unface = [0.61002, -1.13424, 1.03547, -3.08636, 3.99281, -1.43158]
+ # left down window
     ur = URDemo()
     ur.init()
 
@@ -346,26 +357,56 @@ def test_ori_ctr_stage_1_2():
     # print(F_0)
     # sys.exit(0)
     # 3. ori control
-    delta_F_threshold_1 = [8, 10, 18, 0.05, 0.02, 10]
-    F_t = [0, 0, -29, 0, 0, 0]
+    delta_F_threshold_1 = [8, 10, 2, 0.08, 0.08, 0.3] # 0.08, 0.08 for steel plate
+    F_t = [0, 0, -2, 0, 0, 0]
     # F_comp = [0, 0, 0, 0., -0.0, 0]
-    F_comp = [0, 0, 0, 0.168, -0.045, 0]
+    F_comp = [0.00, 0, 0, -0.006, 0.207, -0]
     # F_comp = [0, 0, 0, 0.168/2, -0.045/2, 0]
-    F_d = list_minus(F_t, F_comp)
-    K_ori = np.array([1e8, 1e8, 1e8, 1, 1, 1e8])
+    F_d = list_add(F_t, F_comp)
+    K_ori = np.array([1e8, 1e8, 2000, 1, 2, 1e8])  # 1,2 for steel plate
     v_d,abs_delta_F = ur.HBctr.ori_ctr(F_0,F_d, K_ori)
     trace_arg("abs_delta_F",abs_delta_F, "v_d", v_d)
     # delta_X_in_FT = np.insert(omega_d, 0, [0, 0, 0])
     HZ = 50
-
+    limit_V = np.array([0, 0, 0.1, 0.05, 0.05, 0.05])
     loop = 0
-    while np.sum(abs_delta_F < delta_F_threshold_1) < 6:
+    while np.sum(abs_delta_F[2:] < delta_F_threshold_1[2:]) < 4:
         trace_arg("stage 1")
         trace_loop(loop)
         try:
             delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
             F_0 = ur.get_FT_wrench()
             v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+            v_d = V_d_limitation(v_d, limit_V)
+            trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+            loop += 1
+            ur.rate_sleep()
+        except KeyboardInterrupt:
+            rospy.signal_shutdown("KeyboardInterrupt")
+            raise
+        exp_publish(ur.vd_pub, v_d)
+    print("finished stage 1...")
+
+    delta_F_threshold_2 = [3, 10, 1, 0.08, 0.08, 2]
+    F_t = [0, 0, -13, 0, 0, 0]
+    F_comp = [0.00, 0, 0, -0.006, 0, -0]
+    F_d = list_add(F_t, F_comp)
+    K_ori = np.array([1e8, 1e8, 3000, 5, 5, 1e8])
+    # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+    v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+    # v_d = V_d_limitation(v_d)
+    limit_V = np.array([0, 0, 0.1, 0.03, 0.03, 0.1])
+    loop = 0
+    while np.sum(abs_delta_F[2:-1] < delta_F_threshold_2[2:-1]) < 3:
+        trace_arg("stage 2")
+        trace_loop(loop)
+        try:
+            
+            delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
+            F_0 = ur.get_FT_wrench()
+            # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+            v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+            v_d = V_d_limitation(v_d, limit_V)
             trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
             loop += 1
             ur.rate_sleep()
@@ -375,22 +416,100 @@ def test_ori_ctr_stage_1_2():
         exp_publish(ur.vd_pub, v_d)
     print("finished...")
 
-    delta_F_threshold_2 = [3, 10, 2, 0.2, 0.1, 2]
-    F_t = [0, 0, -29, 0, 0, 0]
-    F_comp = [0,0,0, 0.168, -0.045, 0 ]
-    F_d = list_minus(F_t, F_comp)
+
+def test_ori_ctr_stage_2():
+    print("====  test ori controller ======")
+    p0_touch_face = [-0.12623, -1.12464, 0.90863, -2.24747, 4.75904, -1.63225]
+    p0_init = [0.20053, -2.02754, 1.69492, -2.70726, 4.85173, -1.70402]
+    p0_touch_unface = [-0.10995, -1.15815,
+                       0.88386, -2.07841, 4.60772, -1.57329]
+    p0_untouch_face = [-0.15507, -1.24976,
+                       1.13147, -2.34994, 4.77766, -1.69393]
+    p0_touch_unface = [-0.04143, -1.21044,
+                       1.05306, -2.36349, 4.41011, -1.48096]
+    p0_touch_unface = [-0.21524, -1.23101, 0.88651, -
+                       1.90119, 5.15509, -1.66937]  # right up
+    p0_touch_unface = [-0.19083, -1.32135, 1.23862, -
+                       2.6019, 5.11803, -1.58217]  # right down
+    p0_touch_unface = [-0.06702, -1.12979,
+                       0.85873, -2.34868, 4.34746, -1.60288]
+  # left down
+    # p0_touch_unface = [-0.07496, -1.00436, 0.63303, -2.19539, 4.35075, -1.52971] # large force -5-8N left down
+    # window left up no left rotate touch, will slide on the window
+    p0_touch_unface = [0.71431, -1.40066, 1.18128, -2.55281, 3.96198, -1.45714]
+    # p0_touch_unface = [0.692, -0.9567, 0.19264, -1.97871, 3.92475, -1.64505]
+ # window left up left rotate touch , large incline angle in the Z axis
+    # p0_touch_unface = [0.34265, -1.49027, 1.35336, -2.80789, 4.8922, -1.50369]  # right up touch
+    # p0_touch_unface = [0.61002, -1.13424, 1.03547, -3.08636, 3.99281, -1.43158]
+ # left down window
+    ur = URDemo()
+    ur.init()
+
+    sleep(0.5)
+    res1 = ur.go_to_jpose(p0_init)
+    sleep(3)
+
+    # 1. go to experiment init position
+    res1 = ur.go_to_jpose(p0_touch_unface)
+    sleep(4)
+
+    # 2. get force data
+    F_0 = ur.get_FT_wrench()
+    trace_arg(F_0)
+    HZ = 50
+    # print(F_0)
+    # sys.exit(0)
+    # 3. ori control
+    # 0.08, 0.08 for steel plate
+    # delta_F_threshold_1 = [8, 10, 2, 0.08, 0.08, 0.3]
+    # F_t = [0, 0, -2, 0, 0, 0]
+    # # F_comp = [0, 0, 0, 0., -0.0, 0]
+    # F_comp = [0.00, 0, 0, -0.006, 0.207, -0]
+    # # F_comp = [0, 0, 0, 0.168/2, -0.045/2, 0]
+    # F_d = list_add(F_t, F_comp)
+    # K_ori = np.array([1e8, 1e8, 2000, 1, 2, 1e8])  # 1,2 for steel plate
+    # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+    # trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+    # # delta_X_in_FT = np.insert(omega_d, 0, [0, 0, 0])
+    # limit_V = np.array([0, 0, 0.1, 0.05, 0.05, 0.05])
+    # loop = 0
+    # while np.sum(abs_delta_F[2:] < delta_F_threshold_1[2:]) < 4:
+    #     trace_arg("stage 1")
+    #     trace_loop(loop)
+    #     try:
+    #         delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
+    #         F_0 = ur.get_FT_wrench()
+    #         v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
+    #         v_d = V_d_limitation(v_d, limit_V)
+    #         trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
+    #         loop += 1
+    #         ur.rate_sleep()
+    #     except KeyboardInterrupt:
+    #         rospy.signal_shutdown("KeyboardInterrupt")
+    #         raise
+    #     exp_publish(ur.vd_pub, v_d)
+    # print("finished stage 1...")
+
+    delta_F_threshold_2 = [3, 10, 1, 0.08, 0.08, 2]
+    F_t = [0, 0, -13, 0, 0, 0]
+    F_comp = [0.00, 0, 0, -0.006, 0, -0]
+    F_d = list_add(F_t, F_comp)
     K_ori = np.array([1e8, 1e8, 3000, 5, 5, 1e8])
     # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
     v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+    # v_d = V_d_limitation(v_d)
+    limit_V = np.array([0, 0, 0.1, 0.03, 0.03, 0.1])
     loop = 0
-    while np.sum(abs_delta_F < delta_F_threshold_2) < 6:
+    while np.sum(abs_delta_F[2:-1] < delta_F_threshold_2[2:-1]) < 3:
         trace_arg("stage 2")
         trace_loop(loop)
         try:
+
             delta_X_in_base = ur.urm.speedl_tool(v_d, 1, 1/HZ)
             F_0 = ur.get_FT_wrench()
             # v_d, abs_delta_F = ur.HBctr.ori_ctr(F_0, F_d, K_ori)
             v_d, abs_delta_F = ur.HBctr.ori_pid_ctr(F_0, F_d)
+            v_d = V_d_limitation(v_d, limit_V)
             trace_arg("abs_delta_F", abs_delta_F, "v_d", v_d)
             loop += 1
             ur.rate_sleep()
@@ -482,4 +601,5 @@ if __name__ == '__main__':
     # test_FT_calibration()
     # test_ur_move()
     # test_ori_ctr()
-    test_ori_ctr_stage_1_2()
+    # test_ori_ctr_stage_1_2()
+    test_ori_ctr_stage_2()
