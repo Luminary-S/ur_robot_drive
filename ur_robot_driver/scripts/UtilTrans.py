@@ -11,10 +11,12 @@
 ##############
 
 import math
+from xml.etree.ElementTree import PI
 # import math.pi as M_PI
 import numpy as np
 import quaternion
 from pyquaternion import Quaternion
+from URutility import *
 
 M_PI = math.pi
 
@@ -46,6 +48,15 @@ def V_d_limitation( V, limit_V ):
         else:
             V_r.append(V[i])
     return V_r
+
+def circle_V(t,omega,r=0.04):
+    # omega = 2*PI*f
+    
+    vx = r * omega * math.cos(omega*t)
+    vy = r * omega * math.sin(omega*t)
+    print("vx",vx)
+    print("vy",vy)
+    return [vx,vy]
 
 def minimum_degree_distance(d1, d2):
     delta_d = d1 - d2

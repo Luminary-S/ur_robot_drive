@@ -160,12 +160,13 @@ class HybridController(object):
         # exponential feedback
         v_d = K * np.exp(delta_F) # element wise product
         abs_delta_F = np.abs(delta_F)
-        trace_round("del_F", delta_F, "abs_delta_F", abs_delta_F, "v_d", v_d)
+        trace_round("F_0", F, "del_F", delta_F,
+                    "abs_delta_F", abs_delta_F, "v_d", v_d)
         return v_d, abs_delta_F
 
     def z_ori_adjustment(self, q):
         # adjust z orientation to horizontal
-        return [q[0], q[1], q[2], q[3], q[4], -1.570]
+        return [q[0], q[1], q[2], q[3], q[4], -1.61161]
 
     # include orientation control and the y direction cleaning
     def linear_clean_ctr(self, F, F_d, v_w):

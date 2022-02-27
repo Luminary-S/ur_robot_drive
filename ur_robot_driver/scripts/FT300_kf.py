@@ -61,7 +61,7 @@ class FTKF(object):
         force_sub = rospy.Subscriber(
             "/robotiq_ft_wrench", WrenchStamped, self.callback_ft_sensor, queue_size=1)
     def node_publisher(self):
-        self.ft_pub = rospy.Publisher("robotiq_ft_kf", WrenchStamped, queue_size=1)
+        self.ft_pub = rospy.Publisher("/robotiq_ft_kf", WrenchStamped, queue_size=1)
 
     #NOTE: frequency: 62.7hz ; topic:/robotiq_ft_wrench
     def callback_ft_sensor(self, msg):
